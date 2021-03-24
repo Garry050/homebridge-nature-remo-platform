@@ -2,8 +2,6 @@ import https from 'https';
 import querystring from 'querystring';
 import { IncomingMessage } from 'http';
 
-import { Mutex } from './mutex';
-
 const API_URL = 'https://api.nature.global';
 const CACHE_THRESHOLD = 10 * 1000;
 
@@ -39,20 +37,8 @@ interface Device {
   };
 }
 
-interface AirConState {
-  on: boolean;
-  mode: string;
-  temp: string;
-}
-
 interface LightState {
   on: boolean;
-}
-
-interface SensorValue {
-  te: number;
-  hu: number;
-  il: number;
 }
 
 interface Cache {
@@ -69,8 +55,6 @@ interface DeviceCache extends Cache {
 
 export class NatureRemoApi {
 
-  private readonly mutex = new Mutex();
-
   private applianceCache: ApplianceCache = { updated: 0, appliances: null };
   private deviceCache: DeviceCache = { updated: 0, devices: null };
 
@@ -79,7 +63,6 @@ export class NatureRemoApi {
   ) {}
 
   async getAllAppliances(): Promise<Appliance[]> {
-    const release = await this.mutex.acquire();
     try {
       if (this.applianceCache.appliances && (Date.now() - this.applianceCache.updated) < CACHE_THRESHOLD) {
         return this.applianceCache.appliances;
@@ -94,7 +77,6 @@ export class NatureRemoApi {
   }
 
   async getAllDevices(): Promise<Device[]> {
-    const release = await this.mutex.acquire();
     try {
       if (this.deviceCache.devices && (Date.now() - this.deviceCache.updated) < CACHE_THRESHOLD) {
         return this.deviceCache.devices;
@@ -108,19 +90,6 @@ export class NatureRemoApi {
     }
   }
 
-  async getAirConState(id: string): Promise<AirConState> {
-    const appliances = await this.getAllAppliances();
-    const appliance = appliances.find(val => val.type === 'AC' && val.id === id);
-    if (appliance === undefined) {
-      throw new Error(`Cannnot find appliance -> ${id}`);
-    }
-    return {
-      on: appliance.settings.button !== 'power-off',
-      mode: appliance.settings.mode,
-      temp: appliance.settings.temp,
-    };
-  }
-
   async getLightState(id: string): Promise<LightState> {
     const appliances = await this.getAllAppliances();
     const appliance = appliances.find(val => val.type === 'LIGHT' && val.id === id);
@@ -132,39 +101,9 @@ export class NatureRemoApi {
     };
   }
 
-  async getSensorValue(id: string): Promise<SensorValue> {
-    const devices = await this.getAllDevices();
-    const device = devices.find(val => val.id === id);
-    if (device === undefined) {
-      throw new Error(`Cannnot find device -> ${id}`);
-    }
-    return {
-      te: device.newest_events.te.val,
-      hu: device.newest_events.hu.val,
-      il: device.newest_events.il.val >= 0.0001 ? device.newest_events.il.val : 0.0001,
-    };
-  }
-
   async setLight(applianceId: string, power: boolean): Promise<void> {
     const url = `${API_URL}/1/appliances/${applianceId}/light`;
     this.postMessage(url, { 'button': power ? 'on' : 'off' });
-  }
-
-  async setAirconPowerOff(applianceId: string): Promise<void> {
-    this.setAirconSettings(applianceId, { 'button': 'power-off'});
-  }
-
-  async setAirconOperationMode(applianceId: string, operationMode: string): Promise<void> {
-    this.setAirconSettings(applianceId, { 'operation_mode': operationMode, 'button': '' });
-  }
-
-  async setAirconTemperature(applianceId: string, temperature: string): Promise<void> {
-    this.setAirconSettings(applianceId, { 'temperature': temperature });
-  }
-
-  private async setAirconSettings(applianceId: string, settings: Record<string, string>): Promise<void> {
-    const url = `${API_URL}/1/appliances/${applianceId}/aircon_settings`;
-    this.postMessage(url, settings);
   }
 
   private getMessage(url: string): Promise<Appliance[] | Device[]> {
