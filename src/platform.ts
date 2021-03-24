@@ -59,16 +59,10 @@ export class NatureRemoPlatform implements DynamicPlatformPlugin {
     }
     const appliances = await this.natureRemoApi.getAllAppliances();
     for (const appliance of appliances) {
-      if (appliance.type === 'LIGHT' || appliance.type === 'AC') {
+      if (appliance.type === 'LIGHT') {
         const existingAccessory = this.accessories.find(accessory => accessory.UUID === appliance.id);
         if (existingAccessory) {
           this.logger.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-          if (appliance.type === 'LIGHT') {
-            new NatureNemoLightAccessory(this, existingAccessory);
-        } else {
-          this.logger.info('Adding new accessory:', appliance.nickname);
-          const accessory = new this.api.platformAccessory(appliance.nickname, appliance.id);
-          accessory.context = { appliance: appliance };
           if (appliance.type === 'LIGHT') {
             new NatureNemoLightAccessory(this, accessory);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
